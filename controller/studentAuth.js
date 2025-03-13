@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Student = require('../model/studentModel');
-const { uploadStudent } = require('../utils/multerConfig');
+const { uploadStudent, uploadStudentAny } = require('../utils/multerConfig');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const dotenv = require("dotenv");
@@ -18,14 +18,8 @@ router.get('/totalStudents', async (req, res) => {
     }
 });
 
-const upload = uploadStudent.fields([
-    { name: 'studentImage', maxCount: 1 },
-    { name: 'studentIdImage', maxCount: 1 },
-    { name: 'qrCode', maxCount: 1 }
-]);
-
 // Create a new student
-router.post('/students', upload, async (req, res) => {
+router.post('/students', uploadStudent, async (req, res) => {
     try {
         const files = req.files;
         const studentData = req.body;
@@ -163,54 +157,64 @@ router.get('/students', async (req, res) => {
 });
 
 // Update a student
-router.put('/students/:id', upload, async (req, res) => {
+router.put('/students/:id', uploadStudentAny, async (req, res) => {
     try {
         const files = req.files;
         const studentData = req.body;
 
-        // Log the incoming data for debugging
-        // console.log('Incoming student data:', studentData);
-
-        // Ensure studentId is included in the update
-        if (studentData.studentId) {
-            // Check if the studentId is already in use by another student
-            const existingStudent = await Student.findOne({ 
-                studentId: studentData.studentId,
-                _id: { $ne: req.params.id } // Exclude current student
+        // Handle file uploads if present
+        if (files && files.length > 0) {
+            // Group files by fieldname
+            const filesByField = {};
+            files.forEach(file => {
+                if (!filesByField[file.fieldname]) {
+                    filesByField[file.fieldname] = [];
+                }
+                filesByField[file.fieldname].push(file);
             });
 
-            if (existingStudent) {
-                return res.status(400).json({ 
-                    message: 'Student ID already exists' 
-                });
+            // Handle studentImage - take only the first file
+            if (filesByField.studentImage && filesByField.studentImage.length > 0) {
+                studentData.studentImage = filesByField.studentImage[0].path
+                    .replace(/\\/g, '/')
+                    .replace('uploads/', '');
+            }
+
+            // Handle studentIdImage - take only the first file
+            if (filesByField.studentIdImage && filesByField.studentIdImage.length > 0) {
+                studentData.studentIdImage = filesByField.studentIdImage[0].path
+                    .replace(/\\/g, '/')
+                    .replace('uploads/', '');
+            }
+
+            // Handle qrCode - take only the first file
+            if (filesByField.qrCode && filesByField.qrCode.length > 0) {
+                studentData.bankDetails = studentData.bankDetails || {};
+                studentData.bankDetails.qrCode = filesByField.qrCode[0].path
+                    .replace(/\\/g, '/')
+                    .replace('uploads/', '');
             }
         }
 
-        // Ensure batch is properly formatted as a string
-        if (studentData.batch) {
-            if (Array.isArray(studentData.batch)) {
-                studentData.batch = studentData.batch.join(', ');
-            } else if (typeof studentData.batch !== 'string') {
-                studentData.batch = String(studentData.batch);
+        // Handle loans data if it exists
+        if (studentData.loans) {
+            try {
+                // If loans is already an object, keep it as is
+                // If it's a string, try to parse it
+                if (typeof studentData.loans === 'string') {
+                    // Only try to parse if it looks like JSON
+                    if (studentData.loans.startsWith('{') || studentData.loans.startsWith('[')) {
+                        studentData.loans = JSON.parse(studentData.loans);
+                    } else {
+                        // If it's not valid JSON, remove it
+                        delete studentData.loans;
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing loans data:', error);
+                // If parsing fails, remove the loans field to prevent errors
+                delete studentData.loans;
             }
-        }
-
-        // Handle file uploads if present
-        if (files?.studentImage) {
-            studentData.studentImage = files.studentImage[0].path
-                .replace(/\\/g, '/')
-                .replace('uploads/', '');
-        }
-        if (files?.studentIdImage) {
-            studentData.studentIdImage = files.studentIdImage[0].path
-                .replace(/\\/g, '/')
-                .replace('uploads/', '');
-        }
-        if (files?.qrCode) {
-            studentData.bankDetails = studentData.bankDetails || {};
-            studentData.bankDetails.qrCode = files.qrCode[0].path
-                .replace(/\\/g, '/')
-                .replace('uploads/', '');
         }
 
         // Handle bank details
@@ -237,9 +241,6 @@ router.put('/students/:id', upload, async (req, res) => {
             delete studentData.paymentApp;
         }
 
-        // Log the processed data before update
-        // console.log('Processed student data:', studentData);
-
         const updatedStudent = await Student.findByIdAndUpdate(
             req.params.id,
             { $set: studentData },
@@ -249,9 +250,6 @@ router.put('/students/:id', upload, async (req, res) => {
         if (!updatedStudent) {
             return res.status(404).json({ message: 'Student not found' });
         }
-
-        // Log the updated student
-        // console.log('Updated student:', updatedStudent);
 
         res.json(updatedStudent);
     } catch (err) {

@@ -241,11 +241,28 @@ const uploadEmployee = multer({
   limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit
 });
 
-const uploadStudent = multer({
+const studentMulter = multer({
   storage: studentStorage,
   fileFilter: fileFilter,
   limits: { fileSize: 15 * 1024 * 1024 } // 15MB limit
 });
+
+const uploadStudentAny = studentMulter.any();
+
+const uploadStudent = studentMulter.fields([
+  { name: 'studentImage', maxCount: 1 },
+  { name: 'studentIdImage', maxCount: 1 },
+  { name: 'qrCode', maxCount: 1 },
+  { name: 'admissionDocs', maxCount: 5 },
+  { name: 'scholarshipDocs', maxCount: 5 },
+  { name: 'leaveApplicationDocs', maxCount: 5 },
+  { name: 'certificateDocs', maxCount: 5 },
+  { name: 'profileImage', maxCount: 1 },
+  { name: 'image', maxCount: 1 },
+  { name: 'photo', maxCount: 1 }
+]);
+
+const uploadStudentSingle = studentMulter.single('profileImage');
 
 const uploadProject = multer({
   storage: projectStorage,
@@ -306,7 +323,9 @@ const uploadICCR = multer({
 
 module.exports = { 
   uploadEmployee, 
-  uploadStudent, 
+  uploadStudent,
+  uploadStudentSingle,
+  uploadStudentAny,
   uploadProject, 
   uploadTask, 
   uploadClient, 

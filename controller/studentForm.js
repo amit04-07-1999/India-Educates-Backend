@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const StudentForm = require('../model/studentFormModel');
-const { uploadStudent } = require('../utils/multerConfig');
+const { uploadStudentSingle } = require('../utils/multerConfig');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
 // Create a new student form
-router.post('/student/submit-form', uploadStudent.single('profileImage'), async (req, res) => {
+router.post('/student/submit-form', uploadStudentSingle, async (req, res) => {
   try {
     // Get student ID from token
     const token = req.headers.authorization.split(' ')[1];
