@@ -27,6 +27,8 @@ const employeeStorage = multer.diskStorage({
     } else if (file.fieldname === 'qrCode') {
       uploadPath = './uploads/employee/qr';
     }
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
@@ -68,11 +70,13 @@ const studentStorage = multer.diskStorage({
 
 const projectStorage = multer.diskStorage({
   destination: function (req, file, cb) {
+    let uploadPath = './uploads/project';
     if (file.fieldname === 'projectIcon') {
-      cb(null, './uploads/project/icons');
-    } else {
-      cb(null, './uploads/project');
+      uploadPath = './uploads/project/icons';
     }
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + file.originalname;
@@ -82,7 +86,10 @@ const projectStorage = multer.diskStorage({
 
 const taskStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './uploads/task');
+    let uploadPath = './uploads/task';
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + file.originalname;
@@ -119,7 +126,10 @@ const clientStorage = multer.diskStorage({
 
 const messageStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './uploads/message');
+    let uploadPath = './uploads/message';
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + file.originalname;
@@ -129,7 +139,10 @@ const messageStorage = multer.diskStorage({
 
 const profileStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './uploads/profile');
+    let uploadPath = './uploads/profile';
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + file.originalname;
@@ -139,7 +152,10 @@ const profileStorage = multer.diskStorage({
 
 const invoiceStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './uploads/invoice-logo');
+    let uploadPath = './uploads/invoice-logo';
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + file.originalname;
@@ -159,6 +175,8 @@ const chatStorage = multer.diskStorage({
     } else if (file.fieldname === 'backgroundImage') {
       uploadPath = './uploads/chat/backgrounds';
     }
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
