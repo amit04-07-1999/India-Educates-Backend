@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const Employee = require('../model/employeeModel');
 const User = require('../userModel/adminUserModel');
 const dotenv = require('dotenv');
+const Client = require('../model/clientModel');
 
 dotenv.config();
 
@@ -93,10 +94,31 @@ exports.createTask = async (req, res) => {
     // Removing 'uploads\' from paths
     const newPaths = paths?.map(path => path.replace('uploads\\', ""));
 
-    // Filtering task assigners to remove empty strings
-    const taskAssigner = req.body.taskAssignPerson?.filter(task => task !== "");
+    // Safely handle task assignment
+    let taskAssigner = [];
+    if (req.body.taskAssignPerson) {
+      // Check if taskAssignPerson is a string or array
+      if (Array.isArray(req.body.taskAssignPerson)) {
+        taskAssigner = req.body.taskAssignPerson.filter(task => task !== "");
+      } else if (typeof req.body.taskAssignPerson === 'string') {
+        // If it's a single string value, convert to array
+        taskAssigner = [req.body.taskAssignPerson].filter(task => task !== "");
+      }
+    }
+    
+    // Safely handle client assignment
+    let clientAssigner = [];
+    if (req.body.clientAssignPerson) {
+      // Check if clientAssignPerson is a string or array
+      if (Array.isArray(req.body.clientAssignPerson)) {
+        clientAssigner = req.body.clientAssignPerson.filter(client => client !== "");
+      } else if (typeof req.body.clientAssignPerson === 'string') {
+        // If it's a single string value, convert to array
+        clientAssigner = [req.body.clientAssignPerson].filter(client => client !== "");
+      }
+    }
 
-    // Fetching emails of task assigners
+    // Fetching emails of task assigners (employees)
     const employees = [];
     for (let i = 0; i < taskAssigner.length; i++) {
       try {
@@ -108,6 +130,19 @@ exports.createTask = async (req, res) => {
         console.error(`Error fetching employee with ID ${taskAssigner[i]}: ${err.message}`);
       }
     }
+    
+    // Fetching emails of client assigners
+    const clients = [];
+    for (let i = 0; i < clientAssigner.length; i++) {
+      try {
+        const clientPerson = await Client.findById(clientAssigner[i]);
+        if (clientPerson) {
+          clients.push(clientPerson.clientEmail);
+        }
+      } catch (err) {
+        console.error(`Error fetching client with ID ${clientAssigner[i]}: ${err.message}`);
+      }
+    }
 
     // Adding paths of uploaded images to req.body
     req.body.taskImages = newPaths;
@@ -116,11 +151,14 @@ exports.createTask = async (req, res) => {
     req.body.taskDate = new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"});
 
     // Creating a new Task instance
-    const task = new Task({ ...req.body, taskAssignPerson: taskAssigner });
+    const task = new Task({ 
+      ...req.body, 
+      taskAssignPerson: taskAssigner.length > 0 ? taskAssigner[0] : null,
+      clientAssignPerson: clientAssigner.length > 0 ? clientAssigner[0] : null
+    });
 
     // Saving the task to the database
     const savedTask = await task.save();
-    // console.log(savedTask);
 
     // Email configuration
     const transporter = nodemailer.createTransport({
@@ -131,7 +169,7 @@ exports.createTask = async (req, res) => {
       }
     });
 
-    // Sending email to each task assigner
+    // Sending email to each task assigner (employees)
     const sendEmailPromises = employees.map(email => {
       const mailOptions = {
         from: process.env.USER_EMAIL, // sender address
@@ -152,10 +190,31 @@ exports.createTask = async (req, res) => {
 
       return transporter.sendMail(mailOptions);
     });
+    
+    // Sending email to each client assigner
+    const sendClientEmailPromises = clients.map(email => {
+      const mailOptions = {
+        from: process.env.USER_EMAIL, // sender address
+        to: email, // list of receivers
+        subject: 'Pizeonfly CRM Task', // subject line
+        html: `
+          <h2>New Task Assigned: ${req.body.projectName}</h2>
+          <p><strong>Assigned By:</strong> ${req.body.assignedBy}</p>
+          <p><strong>Due Date:</strong> ${req.body.taskEndDate}</p>
+          <p><strong>Priority:</strong> ${req.body.taskPriority}</p>
+          <p><strong>Description:</strong>${req.body.description}</p>
+          <br/>
+          <p>Please review the task details and start working on it at your earliest convenience.</p>
+          <p>You can view and manage this task by logging into our project management tool:</p>
+          <a href="https://crm.pizeonfly.com/#/client-tasks">Pizeonfly CRM Client Tasks</a>
+        `
+      };
 
-    await Promise.all(sendEmailPromises);
+      return transporter.sendMail(mailOptions);
+    });
 
-    // console.log(savedTask);
+    await Promise.all([...sendEmailPromises, ...sendClientEmailPromises]);
+
     // Sending the saved task as response
     res.status(201).json(savedTask);
   } catch (error) {
@@ -170,7 +229,8 @@ exports.getAllTasks = async (req, res) => {
     // Sort by taskDate in descending order (-1)
     const tasks = await Task.find()
       .sort({ taskDate: -1 })
-      .populate('taskAssignPerson');
+      .populate('taskAssignPerson')
+      .populate('clientAssignPerson');
 
     const projectNames = tasks.map(task => task.projectName);
 
@@ -328,6 +388,55 @@ exports.getTotalTasksByAssignee = async (req, res) => {
   try {
     const totalTasks = await Task.countDocuments({
       taskAssignPerson: _id
+    });
+    return res.json({ totalTasks });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+//Get task by Client Assigne Person (token)
+exports.getClientTask = async (req, res) => {
+  const { _id } = req.body
+
+  try {
+    // Find tasks where this client is assigned
+    const tasks = await Task.find({
+      clientAssignPerson: _id
+    })
+      .sort({ createdAt: -1 })
+      .populate("clientAssignPerson");
+
+    // Count tasks by status
+    const taskStatusCount = {
+      completed: 0,
+      inProgress: 0,
+      notStarted: 0
+    };
+
+    tasks.forEach(task => {
+      if (task.isCompleted) {
+        taskStatusCount.completed++;
+      } else if (task.taskStatus === 'In Progress') {
+        taskStatusCount.inProgress++;
+      } else {
+        taskStatusCount.notStarted++;
+      }
+    });
+
+    res.json({ tasks, taskStatusCount });
+  } catch (err) {
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+// Get total tasks by Client Assignee Person
+exports.getTotalTasksByClientAssignee = async (req, res) => {
+  const { _id } = req.body
+
+  try {
+    const totalTasks = await Task.countDocuments({
+      clientAssignPerson: _id
     });
     return res.json({ totalTasks });
   } catch (err) {

@@ -34,6 +34,10 @@ const taskSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'Employee'
     },
+    clientAssignPerson: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client'
+    },
     taskPriority: {
         type: String,
     },

@@ -20,4 +20,8 @@ router.put('/update/:id', taskController.updateTaskStatus)
 // New route for total tasks by assignee
 router.post('/totalAssigneeTasks', taskController.getTotalTasksByAssignee);
 
+// Client task routes
+router.post('/client', taskController.getClientTask);
+router.post('/totalClientTasks', taskController.getTotalTasksByClientAssignee);
+
 module.exports = router;
