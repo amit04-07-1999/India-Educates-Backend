@@ -33,31 +33,7 @@ const iccrSchema = new Schema({
     motherPhone: { type: String, },
     motherEmail: { type: String, },
 
-    //English Proficiency-1
-    englishProficiency1: { type: String, },
-    tillWhatLevel1: { type: String, },
-    score1: { type: String, },
-
-    //English Proficiency-2
-    englishProficiency2: { type: String, },
-    toeflScore: { type: String, },
-    ieltsScore: { type: String, },
-    duolingoScore: { type: String, },
-
-    //Previous Educational Qualifications
-    previousEducations: [{
-        degree: { type: String },
-        country: { type: String },
-        board: { type: String },
-        school: { type: String },
-        subject: { type: String },
-        year: { type: String },
-        percentage: { type: String }
-    }],
-
-    //Essay
-    essay: { type: String, },
-
+    
     //Course Information
     academicYear: { type: String, },
     levelOfCourse: { type: String, }, // UG/PG
@@ -71,24 +47,7 @@ const iccrSchema = new Schema({
         subject: { type: String },
     }],
 
-    //References
-    references: [{
-        name: { type: String },
-        occupation: { type: String },
-        email: { type: String },
-        phone: { type: String },
-        address: { type: String },
-    }],
-
-    // Details of Close Relative(s) or Friends in India
-    indianContacts: [{
-        contactName: { type: String },
-        relationship: { type: String },
-        occupation: { type: String },
-        telephone: { type: String },
-        email: { type: String },
-        address: { type: String },
-    }],
+    
 
     // Additional Information
     travelledInIndia: { type: String, },
