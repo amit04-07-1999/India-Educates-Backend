@@ -21,89 +21,115 @@ router.post('/iccr', uploadICCR.fields([
     { name: 'signature', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const applicationData = req.body;
+        const applicationData = {};  // Create a new empty object instead of using req.body directly
 
-        // Handle file uploads
-        if (req.files) {
-            // Map file paths to the correct fields
-            if (req.files.studentPhoto) {
-                applicationData.studentPhoto = req.files.studentPhoto[0].path;
+        // Only add the fields we explicitly need
+        const textFields = [
+            'fullName', 'gender', 'placeOfBirth', 'mobileNumber', 'whatsappNumber', 'email',
+            'passport', 'passportCountry', 'city', 'state', 'addressCountry', 'zipcode',
+            'fatherName', 'fatherPhone', 'fatherEmail', 'motherName', 'motherPhone', 'motherEmail',
+            'academicYear', 'levelOfCourse', 'courseMainStream', 'addressLine',
+            'travelledInIndia', 'residenceInIndia', 'marriedToIndian', 'internationalDrivingLicence',
+            'otherInformation', 'placeOfApplication'
+        ];
+
+        // Add text fields from req.body to applicationData
+        textFields.forEach(field => {
+            if (req.body[field]) {
+                applicationData[field] = req.body[field].toString().substring(0, 500); // Limit string length
             }
-            if (req.files.permanentUniqueId) {
-                applicationData.permanentUniqueId = req.files.permanentUniqueId[0].path;
-            }
-            if (req.files.passportCopy) {
-                applicationData.passportCopy = req.files.passportCopy[0].path;
-            }
-            if (req.files.gradeXMarksheet) {
-                applicationData.gradeXMarksheet = req.files.gradeXMarksheet[0].path;
-            }
-            if (req.files.gradeXIIMarksheet) {
-                applicationData.gradeXIIMarksheet = req.files.gradeXIIMarksheet[0].path;
-            }
-            if (req.files.medicalFitnessCertificate) {
-                applicationData.medicalFitnessCertificate = req.files.medicalFitnessCertificate[0].path;
-            }
-            if (req.files.englishTranslationOfDocuments) {
-                applicationData.englishTranslationOfDocuments = req.files.englishTranslationOfDocuments[0].path;
-            }
-            if (req.files.englishAsSubjectDocument) {
-                applicationData.englishAsSubjectDocument = req.files.englishAsSubjectDocument[0].path;
-            }
-            if (req.files.anyOtherDocument) {
-                applicationData.anyOtherDocument = req.files.anyOtherDocument[0].path;
-            }
-            if (req.files.signature) {
-                applicationData.signature = req.files.signature[0].path;
-            }
-        }
+        });
 
         // Parse date fields
         const dateFields = ['dateOfBirth', 'passportIssueDate', 'passportExpiryDate', 'dateOfApplication'];
         dateFields.forEach(field => {
-            if (applicationData[field]) {
-                applicationData[field] = new Date(applicationData[field]);
+            if (req.body[field]) {
+                try {
+                    applicationData[field] = new Date(req.body[field]);
+                } catch (e) {
+                    console.error(`Error parsing date for field ${field}: ${e.message}`);
+                }
             }
         });
 
-        // Create new application
+        // Handle university preferences separately
+        if (req.body['universityPreferences[0][university]']) {
+            applicationData.universityPreferences = [];
+            
+            // Determine how many preferences were submitted
+            let preferenceCount = 0;
+            while (req.body[`universityPreferences[${preferenceCount}][university]`]) {
+                preferenceCount++;
+            }
+            
+            // Process each preference
+            for (let i = 0; i < preferenceCount; i++) {
+                const preference = {
+                    preference: i + 1,
+                    university: (req.body[`universityPreferences[${i}][university]`] || '').substring(0, 100),
+                    course: (req.body[`universityPreferences[${i}][course]`] || '').substring(0, 100),
+                    subject: (req.body[`universityPreferences[${i}][subject]`] || '').substring(0, 100)
+                };
+                applicationData.universityPreferences.push(preference);
+            }
+        }
+
+        // Handle file uploads - store only file paths instead of actual files
+        if (req.files) {
+            const fileFields = [
+                'studentPhoto', 'signature', 'permanentUniqueId', 'passportCopy', 
+                'gradeXMarksheet', 'gradeXIIMarksheet', 'medicalFitnessCertificate', 
+                'englishTranslationOfDocuments', 'englishAsSubjectDocument', 'anyOtherDocument'
+            ];
+            
+            fileFields.forEach(field => {
+                if (req.files[field] && req.files[field][0]) {
+                    // Store only the relative path, not the full file data
+                    applicationData[field] = req.files[field][0].path.replace(/\\/g, '/');
+                }
+            });
+        }
+
+        // Set default status
+        applicationData.status = 'Pending';
+
+        // Create new application with only necessary data
         const newApplication = new ICCR(applicationData);
         await newApplication.save();
 
-        // Send email notification
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.USER_EMAIL,
-                pass: process.env.USER_PASSWORD
+        // Clean up old data occasionally (every 10th submission)
+        if (Math.random() < 0.1) {  // 10% chance to perform cleanup
+            try {
+                // Get count of total documents
+                const count = await ICCR.countDocuments();
+                if (count > 50) { // If we have more than 50 documents
+                    // Find older documents to remove
+                    const oldestDocs = await ICCR.find({})
+                        .sort({ createdAt: 1 }) // Sort by oldest first
+                        .limit(Math.floor(count / 10)); // Remove 10% of oldest docs
+                        
+                    // Delete these documents
+                    for (const doc of oldestDocs) {
+                        await ICCR.findByIdAndDelete(doc._id);
+                    }
+                    console.log(`Cleaned up ${oldestDocs.length} old ICCR documents`);
+                }
+            } catch (cleanupError) {
+                console.error('Error during cleanup:', cleanupError);
+                // Don't throw error, this is just maintenance
             }
-        });
+        }
 
-        const mailOptions = {
-            from: process.env.USER_EMAIL,
-            to: applicationData.email,
-            subject: 'ICCR Scholarship Application Received',
-            html: `
-                <h2>Thank you for your application</h2>
-                <p>Dear ${applicationData.fullName},</p>
-                <p>We have received your ICCR scholarship application. Your application is currently under review.</p>
-                <p>Application Details:</p>
-                <ul>
-                    <li>Application ID: ${newApplication._id}</li>
-                    <li>Course Level: ${applicationData.levelOfCourse}</li>
-                    <li>Stream: ${applicationData.courseMainStream}</li>
-                </ul>
-                <p>We will contact you soon regarding the status of your application.</p>
-                <p>Best regards,<br>ICCR Scholarship Team</p>
-            `
-        };
-
-        await transporter.sendMail(mailOptions);
-
+        // Response to client - only send minimal data back
         res.status(201).json({
             success: true,
             message: 'Application submitted successfully',
-            data: newApplication
+            data: {
+                id: newApplication._id,
+                name: newApplication.fullName,
+                email: newApplication.email,
+                status: newApplication.status
+            }
         });
 
     } catch (error) {

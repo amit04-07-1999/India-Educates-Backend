@@ -189,49 +189,21 @@ const iccrStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     let uploadPath = './uploads/iccr';
     
-    // Handle different types of ICCR documents
-    switch (file.fieldname) {
-      case 'studentPhoto':
-        uploadPath = './uploads/iccr/photos';
-        break;
-      case 'permanentUniqueId':
-        uploadPath = './uploads/iccr/ids';
-        break;
-      case 'passportCopy':
-        uploadPath = './uploads/iccr/passports';
-        break;
-      case 'gradeXMarksheet':
-        uploadPath = './uploads/iccr/academics';
-        break;
-      case 'gradeXIIMarksheet':
-        uploadPath = './uploads/iccr/academics';
-        break;
-      case 'medicalFitnessCertificate':
-        uploadPath = './uploads/iccr/medical';
-        break;
-      case 'englishTranslationOfDocuments':
-        uploadPath = './uploads/iccr/translations';
-        break;
-      case 'englishAsSubjectDocument':
-        uploadPath = './uploads/iccr/english';
-        break;
-      case 'anyOtherDocument':
-        uploadPath = './uploads/iccr/others';
-        break;
-      case 'signature':
-        uploadPath = './uploads/iccr/signatures';
-        break;
-      default:
-        uploadPath = './uploads/iccr/others';
-    }
+    // Create a single folder for all ICCR files to simplify management
+    uploadPath = './uploads/iccr/files';
     
     // Create directory if it doesn't exist
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    // Generate a short, unique filename
+    const uniqueSuffix = Date.now().toString().slice(-6) + Math.round(Math.random() * 999);
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    // Remove spaces and special characters from original filename
+    const sanitizedName = file.fieldname.replace(/[^a-zA-Z0-9]/g, '') + '-' + uniqueSuffix + ext;
+    cb(null, sanitizedName);
   }
 });
 
@@ -317,8 +289,21 @@ const uploadChat = multer({
 
 const uploadICCR = multer({
   storage: iccrStorage,
-  fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  fileFilter: (req, file, cb) => {
+    // Only allow certain file types
+    const allowedTypes = /jpeg|jpg|png|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images (JPG, PNG) and PDF files are allowed'));
+    }
+  },
+  limits: { 
+    fileSize: 1 * 1024 * 1024 // Reduce max file size to 1MB
+  }
 });
 
 module.exports = { 
