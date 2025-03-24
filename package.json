@@ -35,6 +35,5 @@
     "twilio": "^5.4.0",
     "validator": "^13.11.0"
   },
-  "devDependencies": {},
   "description": ""
 }
