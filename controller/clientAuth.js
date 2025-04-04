@@ -25,7 +25,8 @@ router.post('/clients', uploadClient.fields([
   { name: 'clientDL', maxCount: 1 },
   { name: 'clientPassport', maxCount: 1 },
   { name: 'clientAgentID', maxCount: 1 },
-  { name: 'clientGovtID', maxCount: 1 }
+  { name: 'clientGovtID', maxCount: 1 },
+  { name: 'qrCode', maxCount: 1 }
 ]), async (req, res) => {
   try {
     // Process clientImage
@@ -57,6 +58,12 @@ router.post('/clients', uploadClient.fields([
       req.body.clientGovtID = path.replace('uploads\\', "");
     }
     
+    // Add QR code handling
+    if (req.files.qrCode && req.files.qrCode[0]) {
+      const path = req.files.qrCode[0].path;
+      req.body.bankDetails.qrCode = path.replace('uploads\\', "");
+    }
+    
     // Extract bank details from request body
     const bankDetails = {
       accountNumber: req.body.accountNumber || '',
@@ -65,7 +72,6 @@ router.post('/clients', uploadClient.fields([
       ifscCode: req.body.ifscCode || '',
       bankName: req.body.bankName || '',
       upiId: req.body.upiId || '',
-      qrCode: req.body.qrCode || '',
       paymentApp: req.body.paymentApp || ''
     };
     
@@ -208,7 +214,8 @@ router.put('/clients/:id', uploadClient.fields([
   { name: 'clientDL', maxCount: 1 },
   { name: 'clientPassport', maxCount: 1 },
   { name: 'clientAgentID', maxCount: 1 },
-  { name: 'clientGovtID', maxCount: 1 }
+  { name: 'clientGovtID', maxCount: 1 },
+  { name: 'qrCode', maxCount: 1 }
 ]), async (req, res) => {
   try {
     const client = await Client.findById(req.params.id);
@@ -242,6 +249,11 @@ router.put('/clients/:id', uploadClient.fields([
       const newPath = req.files.clientGovtID[0].path.replace('uploads\\', "");
       client.clientGovtID = newPath;
     }
+
+    if (req.files.qrCode && req.files.qrCode[0]) {
+      const newPath = req.files.qrCode[0].path.replace('uploads\\', "");
+      client.bankDetails.qrCode = newPath;
+  }
 
     // Update bank details
     client.bankDetails = {

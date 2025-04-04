@@ -112,6 +112,8 @@ const clientStorage = multer.diskStorage({
       uploadPath = './uploads/client/agent-id';
     } else if (file.fieldname === 'clientGovtID') {
       uploadPath = './uploads/client/govt-id';
+    } else if (file.fieldname === 'qrCode') {
+      uploadPath = './uploads/client/qr-codes';
     }
     
     // Create directory if it doesn't exist
